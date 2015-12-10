@@ -7,7 +7,7 @@
 #include <string>
 #include <functional>
 #include <stdexcept>
-
+#include <stdio.h>
 #include <gtest/gtest.h>
 #include "template_types.h"
 
@@ -139,6 +139,9 @@ TEST_F(TestBSt, getOp)
     EXPECT_EQ(*tree.get(3),6);
 }
 
+
+
+
 void testBST()
 {
     BinarySearchTree<int,int> bst;
@@ -147,11 +150,47 @@ void testBST()
 }
 
 
+class TestBSTIter: public ::testing::Test {
+protected:
+     BinarySearchTree<int,int> tree;
+     virtual void SetUp()
+    {
+        tree.put(1,2);
+        tree.put(2,4);
+        tree.put(3,6);
+        tree.put(-1,1);
+        tree.put(-2,2);
+    }
+    
+    virtual void TearDown()
+    {
+
+    } 
+};
 
 
+TEST_F(TestBSTIter, testMove)
+{
+    
+    BSTIterator<int,int> iter(tree.getRoot());
+    EXPECT_EQ(*iter.nextKey() , -2);
+    EXPECT_EQ(*iter.nextKey(),-1);
+    EXPECT_EQ(*iter.nextKey(),1);
+}
 
 
+void foo()
+{
+    BinarySearchTree<int,int> tree;
+    tree.put(-3,2);
+    tree.put(-4,5);
+    tree.put(8,2);
+    BSTIterator<int,int> iter(tree.getRoot());
 
+    while (iter.hasNext())
+        printf("key: %d\n", iter.next()->key );
+
+}
 
 
 int main(int argc, char** argv){
@@ -160,7 +199,7 @@ int main(int argc, char** argv){
     RUN_ALL_TESTS();
 
     // testBST();
-
+//    foo();
     return 0;
 
 }

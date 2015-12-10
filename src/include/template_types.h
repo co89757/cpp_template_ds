@@ -214,7 +214,7 @@ class MedianHeap
 
 
             if(N % 2 == 0 )
-                return (minheap.top() + maxheap.top() )/2 ;
+                return (minheap.top() + maxheap.top() )/ static_cast<TKey>(2) ;
             else
                 return maxheap.top();
         }
@@ -249,8 +249,8 @@ template<typename TItem>
 class IIterator {
  
 public:
-    virtual bool moveNext() = 0;
-    virtual TItem* current() = 0;
+    virtual bool hasNext() = 0;
+    virtual std::shared_ptr<TItem> next() = 0;
     virtual void reset()=0;
 };
 
@@ -269,9 +269,9 @@ public:
 template<typename TKey, typename TVal >
 class BinarySearchTree : public IMap<TKey,TVal> 
 {
-private:
-    std::function<int(TKey,TKey)> comp;
-    
+
+
+public:
     struct Node
     {
         TKey key;
@@ -285,7 +285,87 @@ private:
     };
     typedef std::shared_ptr<Node> PNode;
 
+
+
+    BinarySearchTree():pRoot(nullptr){
+        comp = [](TKey k1, TKey k2)->int {
+            if (k1 < k2) return -1 ;
+            if (k1 == k2 ) return 0;
+            if (k1 > k2 ) return 1;
+        };
+
+    }
+    /**
+     * pass in a comparator on construction
+     */
+    explicit BinarySearchTree(std::function<int(TKey,TKey)> arg_comp):comp(arg_comp),pRoot(nullptr){ }
+
+
+
+    /**
+     * put a k-v pair
+     * @param key key 
+     * @param val value
+     */
+    virtual void put(TKey key, TVal val)  override
+    {
+        pRoot = rput(GET_RAW_PTR(pRoot), key, val);
+    }
+    virtual TVal* get(TKey key) override
+    {
+        return rget(GET_RAW_PTR(pRoot), key);
+    }
+
+    TKey select(int k)
+    {
+        if(!pRoot){
+            throw std::invalid_argument("root node is null\n");
+        }
+
+        return rselect(pRoot,k)->key;
+    }
+
+    int rank(TKey key)
+    {
+        return rrank(pRoot, key);
+    }
+
+    void removeMin()
+    {
+        pRoot = rremoveMin(pRoot);
+    }
+
+
+    virtual void remove(TKey key) override
+    {
+        pRoot = rremove(pRoot,key);
+    }
+
+    virtual bool contains(TKey key) override
+    {
+        return get(key) != nullptr ;
+    }
+
+    virtual size_t size() const override
+    {
+        return rsize(GET_RAW_PTR(pRoot));
+    }
+    ;
+    virtual bool empty() const 
+    {
+        return pRoot == nullptr; 
+    }
+
+    PNode getRoot() const 
+    {
+        return pRoot;
+    }
+
+/** PRIVATE METHODS */
+private:
+    std::function<int(TKey,TKey)> comp;
     PNode pRoot;
+
 
     int compareTo(TKey k1, TKey k2)
     {
@@ -384,78 +464,72 @@ private:
         return x; 
     }
 
-public:
-    BinarySearchTree():pRoot(nullptr){
-        comp = [](TKey k1, TKey k2)->int {
-            if (k1 < k2) return -1 ;
-            if (k1 == k2 ) return 0;
-            if (k1 > k2 ) return 1;
-        };
-
-    }
-    /**
-     * pass in a comparator on construction
-     */
-    explicit BinarySearchTree(std::function<int(TKey,TKey)> arg_comp):comp(arg_comp),pRoot(nullptr){ }
-
-
-    /**
-     * put a k-v pair
-     * @param key key 
-     * @param val value
-     */
-    virtual void put(TKey key, TVal val)  override
-    {
-        pRoot = rput(GET_RAW_PTR(pRoot), key, val);
-    }
-    virtual TVal* get(TKey key) override
-    {
-        return rget(GET_RAW_PTR(pRoot), key);
-    }
-
-    TKey select(int k)
-    {
-        if(!pRoot){
-            throw std::invalid_argument("root node is null\n");
-        }
-
-        return rselect(pRoot,k)->key;
-    }
-
-    int rank(TKey key)
-    {
-        return rrank(pRoot, key);
-    }
-
-    void removeMin()
-    {
-        pRoot = rremoveMin(pRoot);
-    }
-
-
-    virtual void remove(TKey key) override
-    {
-        pRoot = rremove(pRoot,key);
-    }
-
-    virtual bool contains(TKey key) override
-    {
-        return get(key) != nullptr ;
-    }
-
-    virtual size_t size() const override
-    {
-        return rsize(GET_RAW_PTR(pRoot));
-    }
-    ;
-    virtual bool empty() const 
-    {
-        return pRoot == nullptr; 
-    }
-
 };
 
+//BUGGY, segfault
+template<typename TKey,typename TVal>
+class BSTIterator : public IIterator< typename BinarySearchTree<TKey,TVal>::Node > {
+private:
+    using ptrNode = typename BinarySearchTree<TKey,TVal>::PNode;
+    ptrNode pCurrent = nullptr;
+    ptrNode pRoot = nullptr;
+    
+    
+    std::stack< ptrNode > nodeStack;
 
+    void init(ptrNode root )
+    {
+        pRoot = root;
+        pCurrent = root;
+        while(pCurrent) {
+            nodeStack.push(pCurrent);
+            pCurrent = pCurrent->left;
+        }
+        //now current is null
+    }
+
+public:
+    BSTIterator (/* args */) = delete;
+    BSTIterator( ptrNode root )
+    {
+       init(root);
+    }
+
+    virtual ptrNode next() override
+    {
+        if(nodeStack.empty())
+            return nullptr;
+        ptrNode t = nodeStack.top();
+        nodeStack.pop();
+        if (t->right)
+            pCurrent = t->right;
+        while (pCurrent)
+        {
+            nodeStack.push(pCurrent);
+            pCurrent = pCurrent->left;
+        }
+
+        return t;
+    }
+
+    TKey* nextKey()
+    {
+        ptrNode node = next();
+        return node?(&node->key):nullptr;
+    }
+
+    virtual bool hasNext() override
+    {
+        return !nodeStack.empty();
+    }
+
+    void reset() override
+    {
+        init(pRoot);
+    }
+
+
+};
 
 
 
